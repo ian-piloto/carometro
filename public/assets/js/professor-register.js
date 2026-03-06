@@ -91,7 +91,7 @@ function startRegScanLoop() {
         faceapi.matchDimensions(canvas, size);
 
         try {
-            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
+            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 }))
                 .withFaceLandmarks()
                 .withFaceDescriptor();
 
@@ -100,7 +100,15 @@ function startRegScanLoop() {
 
             if (detection) {
                 const resized = faceapi.resizeResults(detection, size);
-                faceapi.draw.drawDetections(canvas, resized);
+
+                // Desenha caixa de Sucesso (Verde)
+                const box = resized.detection.box;
+                const drawBox = new faceapi.draw.DrawBox(box, {
+                    label: 'Rosto Detectado',
+                    lineWidth: 3,
+                    boxColor: 'rgba(40, 167, 69, 0.9)'
+                });
+                drawBox.draw(canvas);
 
                 status.innerText = "Biometria Capturada ✓";
                 status.style.backgroundColor = "rgba(40, 167, 69, 0.8)";

@@ -17,7 +17,6 @@ require_once __DIR__ . '/../config/config.php';
         .fullscreen-video-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
         video { min-width: 100%; min-height: 100%; object-fit: cover; }
         .vision-status-overlay { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: #fff; padding: 10px 20px; border-radius: 20px; font-weight: bold; z-index: 10; font-size: 1.2rem; }
-        #portrait-blur { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; transition: all 0.2s; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); mask-image: radial-gradient(circle at var(--face-x, 50%) var(--face-y, 50%), transparent var(--face-r, 0%), black calc(var(--face-r, 0%) + 15%)); -webkit-mask-image: radial-gradient(circle at var(--face-x, 50%) var(--face-y, 50%), transparent var(--face-r, 0%), black calc(var(--face-r, 0%) + 15%)); }
         
         #access-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: var(--success);
@@ -28,6 +27,9 @@ require_once __DIR__ . '/../config/config.php';
         .access-title { font-size: 3rem; font-weight: 800; line-height: 1; margin: 1rem 0; text-transform: uppercase; letter-spacing: 2px; }
         .access-name { font-size: 4rem; font-weight: 600; text-align: center; }
         .access-icon { background: rgba(255, 255, 255, 0.2); padding: 30px; border-radius: 50%; }
+        
+        /* Estilos do Canvas para Caixa do Rosto */
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -35,8 +37,7 @@ require_once __DIR__ . '/../config/config.php';
 <body>
     <div class="fullscreen-video-container">
         <video id="video" autoplay muted playsinline></video>
-        <div id="portrait-blur"></div>
-        <canvas id="overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5;"></canvas>
+        <canvas id="overlay"></canvas>
         <div id="vision-status" class="vision-status-overlay">Carregando IA...</div>
     </div>
 

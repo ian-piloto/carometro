@@ -83,68 +83,81 @@ function startRecognitionLoop() {
                 .withFaceLandmarks()
                 .withFaceDescriptors();
 
-            const blurOverlay = document.getElementById('portrait-blur');
+            let drawLabel = 'Detectando...';
+            let drawColor = 'rgba(255, 255, 255, 0.8)'; // Branco
 
             if (detections.length > 0) {
                 // Seleciona o primeiro rosto (o mais visível)
                 let mainFace = detections[0];
-                const box = mainFace.detection.box;
-                const centerX = box.x + (box.width / 2);
-                const centerY = box.y + (box.height / 2);
 
-                if (blurOverlay) {
-                    blurOverlay.style.setProperty('--face-x', `${(centerX / dynamicSize.width) * 100}%`);
-                    blurOverlay.style.setProperty('--face-y', `${(centerY / dynamicSize.height) * 100}%`);
-                    blurOverlay.style.setProperty('--face-r', `${Math.max(25, (box.width / dynamicSize.width) * 100)}%`);
-                }
+                if (!window.isProcessing) {
+                    window.isProcessing = true;
 
-                if (window.isProcessing) return;
-                window.isProcessing = true;
+                    try {
+                        if (window.knownStudentsCache && window.knownStudentsCache.length > 0) {
+                            let bestMatch = null;
+                            let minDistance = 0.55; // Limiar mais permissivo (antes 0.50)
 
-                try {
-                    if (!window.knownStudentsCache || window.knownStudentsCache.length === 0) return;
+                            window.knownStudentsCache.forEach(student => {
+                                if (student.face_descriptor) {
+                                    const studentDesc = new Float32Array(JSON.parse(student.face_descriptor));
+                                    const distance = faceapi.euclideanDistance(mainFace.descriptor, studentDesc);
+                                    if (distance < minDistance) {
+                                        minDistance = distance;
+                                        bestMatch = student;
+                                    }
+                                }
+                            });
 
-                    let bestMatch = null;
-                    let minDistance = 0.50; // Limiar
+                            if (bestMatch) {
+                                const cooldownKey = `cooldown_${bestMatch.id}`;
+                                drawLabel = bestMatch.nome;
+                                drawColor = 'rgba(40, 167, 69, 0.9)'; // Verde sucesso
 
-                    window.knownStudentsCache.forEach(student => {
-                        if (student.face_descriptor) {
-                            const studentDesc = new Float32Array(JSON.parse(student.face_descriptor));
-                            const distance = faceapi.euclideanDistance(mainFace.descriptor, studentDesc);
-                            if (distance < minDistance) {
-                                minDistance = distance;
-                                bestMatch = student;
+                                if (!window[cooldownKey]) {
+                                    document.getElementById('vision-status').innerText = `Verificando presença...`;
+                                    await logPresence(bestMatch, cooldownKey);
+                                } else {
+                                    document.getElementById('vision-status').innerText = `Presença de ${bestMatch.nome} já registrada`;
+                                }
+                            } else {
+                                drawLabel = 'Rosto Desconhecido';
+                                drawColor = 'rgba(220, 53, 69, 0.9)'; // Vermelho alerta
+                                document.getElementById('vision-status').innerText = "Rosto Desconhecido";
                             }
                         }
-                    });
-
-                    if (bestMatch) {
-                        const cooldownKey = `cooldown_${bestMatch.id}`;
-                        if (!window[cooldownKey]) {
-                            document.getElementById('vision-status').innerText = "Identificando...";
-                            await logPresence(bestMatch, cooldownKey);
-                        } else {
-                            document.getElementById('vision-status').innerText = "Aguarde (Cooldown)";
-                        }
-                    } else {
-                        document.getElementById('vision-status').innerText = "Rosto Desconhecido";
+                    } finally {
+                        window.isProcessing = false;
                     }
-                } finally {
-                    window.isProcessing = false;
+                } else {
+                    // Mantém estado visual enquanto processa
+                    drawLabel = 'Processando...';
+                    drawColor = 'rgba(255, 193, 7, 0.9)'; // Amarelo
                 }
             } else {
-                if (blurOverlay) blurOverlay.style.setProperty('--face-r', `0%`);
                 document.getElementById('vision-status').innerText = "Aguardando rosto...";
             }
 
-            // Desenhar detecção
+            // Desenhar detecção (Quadrado em volta do rosto)
             if (canvas) {
                 const resizedDetections = faceapi.resizeResults(detections, dynamicSize);
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-                faceapi.draw.drawDetections(canvas, resizedDetections);
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (resizedDetections.length > 0) {
+                    const box = resizedDetections[0].detection.box;
+                    const drawBox = new faceapi.draw.DrawBox(box, {
+                        label: drawLabel,
+                        lineWidth: 3,
+                        boxColor: drawColor
+                    });
+                    drawBox.draw(canvas);
+                }
             }
 
-        } catch (e) { }
+        } catch (e) {
+            console.error("Erro no reconhecimento: ", e);
+        }
     }, 1000);
 }
 
