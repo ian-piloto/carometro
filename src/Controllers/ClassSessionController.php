@@ -14,10 +14,10 @@ class ClassSessionController
     }
 
     /**
-     * Inicia uma nova sessão de aula para o professor/curso.
-     * Pré-popula a chamada com FALTA para todos os alunos do curso.
+     * Inicia uma nova sessão de aula para o professor.
+     * Pré-popula a chamada com FALTA para todos os alunos da turma.
      */
-    public function startSession(int $professorId, int $courseId): array
+    public function startSession(int $professorId, string $turma): array
     {
         // Verifica se já há uma aula ativa para este professor
         $check = $this->db->prepare(
@@ -29,16 +29,20 @@ class ClassSessionController
         $check->close();
 
         if ($existing) {
-            return ['success' => false, 'message' => 'Já existe uma aula ativa. Encerre-a antes de iniciar outra.', 'session_id' => $existing['id']];
+            return [
+                'success' => false,
+                'message' => 'Já existe uma aula ativa. Encerre-a antes de iniciar outra.',
+                'session_id' => $existing['id'],
+            ];
         }
 
         $today = date('Y-m-d');
         $horaInicio = date('H:i:s');
 
         $stmt = $this->db->prepare(
-            "INSERT INTO class_sessions (professor_id, course_id, data_aula, hora_inicio) VALUES (?, ?, ?, ?)"
+            "INSERT INTO class_sessions (professor_id, turma, data_aula, hora_inicio) VALUES (?, ?, ?, ?)"
         );
-        $stmt->bind_param("iiss", $professorId, $courseId, $today, $horaInicio);
+        $stmt->bind_param("isss", $professorId, $turma, $today, $horaInicio);
         $result = $stmt->execute();
         $sessionId = $this->db->insert_id;
         $stmt->close();
@@ -47,11 +51,11 @@ class ClassSessionController
             return ['success' => false, 'message' => 'Erro ao criar sessão de aula.'];
         }
 
-        // Pré-popula chamada: todos os alunos do curso recebem FALTA
+        // Pré-popula chamada: todos os alunos da turma recebem FALTA
         $students = $this->db->prepare(
-            "SELECT id FROM students WHERE course_id = ? AND status = 'ativo'"
+            "SELECT id FROM students WHERE turma = ? AND status = 'ativo'"
         );
-        $students->bind_param("i", $courseId);
+        $students->bind_param("s", $turma);
         $students->execute();
         $rows = $students->get_result()->fetch_all(MYSQLI_ASSOC);
         $students->close();
@@ -70,7 +74,7 @@ class ClassSessionController
         return [
             'success' => true,
             'session_id' => $sessionId,
-            'message' => 'Aula iniciada! Chamada aberta com ' . count($rows) . ' aluno(s).'
+            'message' => 'Aula iniciada! Chamada aberta com ' . count($rows) . ' aluno(s).',
         ];
     }
 
@@ -80,10 +84,9 @@ class ClassSessionController
     public function getActiveSession(int $professorId): array
     {
         $stmt = $this->db->prepare(
-            "SELECT cs.*, c.nome AS course_nome
-             FROM class_sessions cs
-             JOIN courses c ON c.id = cs.course_id
-             WHERE cs.professor_id = ? AND cs.status = 'ativa'
+            "SELECT id, turma, data_aula, hora_inicio
+             FROM class_sessions
+             WHERE professor_id = ? AND status = 'ativa'
              LIMIT 1"
         );
         $stmt->bind_param("i", $professorId);
@@ -121,7 +124,6 @@ class ClassSessionController
 
     /**
      * Marca o aluno como PRESENTE na sessão ativa.
-     * Chamado pelo reconhecimento facial quando identifica o aluno.
      */
     public function markPresent(int $sessionId, int $studentId): array
     {
@@ -140,7 +142,7 @@ class ClassSessionController
         return [
             'success' => true,
             'updated' => $affected > 0,
-            'message' => $affected > 0 ? 'Presença registrada!' : 'Aluno já marcado como presente.'
+            'message' => $affected > 0 ? 'Presença registrada!' : 'Aluno já marcado como presente.',
         ];
     }
 
@@ -163,7 +165,7 @@ class ClassSessionController
 
         return [
             'success' => $affected > 0,
-            'message' => $affected > 0 ? 'Aula encerrada com sucesso!' : 'Sessão não encontrada ou já encerrada.'
+            'message' => $affected > 0 ? 'Aula encerrada com sucesso!' : 'Sessão não encontrada ou já encerrada.',
         ];
     }
 }

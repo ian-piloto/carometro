@@ -2,26 +2,32 @@
 
 namespace App\Controllers;
 
-use mysqli;
-
 /**
- * Controller de autenticação de professores via sessão PHP.
+ * Controller de autenticação — apenas login local (sem banco de dados).
+ *
+ * Para adicionar professores, basta adicionar um item ao array $professores abaixo.
+ * Campos obrigatórios: nome, email, senha, turma.
  */
 class AuthController
 {
     /**
      * Lista de professores cadastrados manualmente (Login Local).
-     * Siga o formato abaixo para adicionar novos professores.
+     * Adicione novos professores aqui — sem banco de dados necessário.
      */
-    private array $professoresLocais = [
+    private array $professores = [
         [
             'nome' => 'Professor Administrador',
             'email' => 'admin@escola.com',
             'senha' => 'admin123',
-            'course_id' => 1,
-            'course_nome' => 'Administração'
+            'turma' => 'Turma A',
         ],
-        // Adicione mais professores aqui
+        // Exemplo de como adicionar outro professor:
+        // [
+        //     'nome'  => 'Maria Souza',
+        //     'email' => 'maria@escola.com',
+        //     'senha' => 'senha456',
+        //     'turma' => 'Turma B',
+        // ],
     ];
 
     public function __construct()
@@ -43,21 +49,19 @@ class AuthController
             return ['success' => false, 'message' => 'E-mail e senha são obrigatórios.'];
         }
 
-        // 1. Verificar se é um login local (hardcoded)
-        foreach ($this->professoresLocais as $prodLocal) {
-            if ($prodLocal['email'] === $email && $prodLocal['senha'] === $senha) {
+        foreach ($this->professores as $prof) {
+            if ($prof['email'] === $email && $prof['senha'] === $senha) {
                 $_SESSION['professor'] = [
-                    'id' => 0, // ID 0 para logins locais
-                    'nome' => $prodLocal['nome'],
-                    'email' => $prodLocal['email'],
-                    'course_id' => $prodLocal['course_id'],
-                    'course_nome' => $prodLocal['course_nome'],
+                    'id' => 0,
+                    'nome' => $prof['nome'],
+                    'email' => $prof['email'],
+                    'turma' => $prof['turma'],
                 ];
 
                 return [
                     'success' => true,
                     'professor' => $_SESSION['professor'],
-                    'message' => 'Login realizado com sucesso (Acesso Local)!'
+                    'message' => 'Login realizado!',
                 ];
             }
         }

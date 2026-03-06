@@ -1,8 +1,8 @@
 <?php
 
 /**
- * Roteador Central da API — sistema_presenca_sala
- * Todas as rotas protegidas exigem sessão PHP válida, exceto /login.
+ * Roteador Central da API — Carômetro
+ * Rotas protegidas exigem sessão PHP válida, exceto /login e /logout.
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -17,7 +17,6 @@ use App\Config\Database;
 use App\Controllers\StudentController;
 use App\Controllers\AuthController;
 use App\Controllers\ClassSessionController;
-use App\Controllers\ExportController;
 
 // Inicia sessão antes de qualquer output
 if (session_status() === PHP_SESSION_NONE) {
@@ -28,51 +27,52 @@ header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? '';
 
+// ── Rotas de autenticação (não precisam de DB) ────────────────────
+$authController = new AuthController();
+
+if ($action === 'login') {
+    $data = json_decode(file_get_contents('php://input'), true) ?? [];
+    echo json_encode($authController->login($data));
+    exit;
+}
+
+if ($action === 'logout') {
+    echo json_encode($authController->logout());
+    exit;
+}
+
+if ($action === 'get_session') {
+    echo json_encode($authController->getSession());
+    exit;
+}
+
+// ── Guard: todas as demais rotas exigem autenticação ────────────
+if (!isset($_SESSION['professor'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Não autenticado.']);
+    exit;
+}
+
+$professor = $_SESSION['professor'];
+
+// ── Rotas que precisam de DB ─────────────────────────────────────
 try {
     $db = (new Database())->getConnection();
 
-    $authController = new AuthController();
     $studentController = new StudentController($db);
     $sessionController = new ClassSessionController($db);
-    $exportController = new ExportController($db);
-
-    // ── Rota pública: login ──────────────────────────────────────
-    if ($action === 'login') {
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
-        echo json_encode($authController->login($data));
-        exit;
-    }
-
-    if ($action === 'logout') {
-        echo json_encode($authController->logout());
-        exit;
-    }
-
-    if ($action === 'get_session') {
-        echo json_encode($authController->getSession());
-        exit;
-    }
-
-    // ── Guard: todas as demais rotas exigem autenticação ────────
-    if (!isset($_SESSION['professor'])) {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Não autenticado.']);
-        exit;
-    }
-
-    $professor = $_SESSION['professor'];
 
     switch ($action) {
 
         // ── Alunos ─────────────────────────────────────────────
         case 'list_students':
-            echo json_encode($studentController->listByCourse($professor['course_id']));
+            echo json_encode($studentController->listByTurma($professor['turma']));
             break;
 
         case 'register_student':
             $data = json_decode(file_get_contents('php://input'), true) ?? [];
-            // Força o course_id do professor logado (não aceita do cliente)
-            $data['course_id'] = $professor['course_id'];
+            // Força a turma do professor logado (não aceita do cliente)
+            $data['turma'] = $professor['turma'];
             echo json_encode($studentController->register($data));
             break;
 
@@ -81,15 +81,11 @@ try {
             echo json_encode($studentController->delete($id));
             break;
 
-        case 'dashboard_stats':
-            echo json_encode($studentController->getDashboardStats());
-            break;
-
         // ── Sessão de Aula ─────────────────────────────────────
         case 'start_class':
             echo json_encode($sessionController->startSession(
                 $professor['id'],
-                $professor['course_id']
+                $professor['turma']
             ));
             break;
 
@@ -113,10 +109,6 @@ try {
             $data = json_decode(file_get_contents('php://input'), true) ?? [];
             $sessionId = (int)($data['session_id'] ?? 0);
             echo json_encode($sessionController->closeSession($sessionId, $professor['id']));
-            break;
-
-        case 'export_excel':
-            $exportController->exportExcel();
             break;
 
         default:
