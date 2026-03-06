@@ -1,6 +1,5 @@
 /**
- * Lógica Central do Front-end — Sistema de Presença Facial
- * Gerencia: navegação, relógio, chamada de aula, alunos e integração com API.
+ * Lógica Central do Front-end — Professor Area
  */
 
 let activeSessionId = null;    // ID da sessão de aula ativa
@@ -13,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateClock, 1000);
 
     loadStudents();
-    checkActiveSession(); // Verifica se já existe aula em andamento ao carregar
+    checkActiveSession();
 
     const activeSection = document.querySelector('.nav-links li.active');
     if (activeSection) {
@@ -34,21 +33,16 @@ function showSection(sectionId) {
     document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
     document.querySelectorAll('.nav-links li').forEach(l => l.classList.remove('active'));
 
-    document.getElementById(`sec-${sectionId}`)?.classList.remove('hidden');
+    const sectionEl = document.getElementById(`sec-${sectionId}`);
+    if (sectionEl) sectionEl.classList.remove('hidden');
 
     const activeLi = Array.from(document.querySelectorAll('.nav-links li')).find(li =>
         li.getAttribute('onclick')?.includes(`'${sectionId}'`)
     );
     if (activeLi) activeLi.classList.add('active');
 
-    const titles = { vision: 'Scanner de Acesso', chamada: 'Chamada da Aula', students: 'Gestão de Alunos' };
+    const titles = { chamada: 'Chamada da Aula', students: 'Gestão de Alunos' };
     document.getElementById('page-title').innerText = titles[sectionId] || '';
-
-    if (sectionId === 'vision') {
-        window.startVideo?.();
-    } else {
-        window.stopVideo?.();
-    }
 
     if (sectionId === 'chamada' && activeSessionId) {
         loadAttendance(activeSessionId);
@@ -64,7 +58,7 @@ async function checkActiveSession() {
         if (data.active && data.session) {
             setActiveSession(data.session.id, new Date(data.session.data_aula + ' ' + data.session.hora_inicio));
         }
-    } catch (e) { /* ignora */ }
+    } catch (e) { }
 }
 
 async function toggleClass() {
@@ -87,7 +81,6 @@ async function startClass() {
             loadAttendance(data.session_id);
         } else {
             showToast(data.message, 'error');
-            // Se já existe sessão ativa, recupera o ID
             if (data.session_id) {
                 setActiveSession(data.session_id, new Date());
             }
@@ -112,7 +105,6 @@ async function endClass() {
         if (data.success) {
             showToast('Aula encerrada!', 'success');
             clearActiveSession();
-            // Exibe chamada final (somente leitura)
             loadAttendance(activeSessionId);
         } else {
             showToast(data.message, 'error');
@@ -124,10 +116,8 @@ async function endClass() {
 
 function setActiveSession(sessionId, startTime) {
     activeSessionId = sessionId;
-    window.activeSessionId = sessionId; // Disponibiliza para facialRecognition.js
     classStartTime = startTime;
 
-    // Atualiza botão da sidebar
     const btn = document.getElementById('btn-start-class');
     if (btn) {
         btn.classList.add('active');
@@ -138,11 +128,9 @@ function setActiveSession(sessionId, startTime) {
             Encerrar Aula`;
     }
 
-    // Mostra card de status da aula no painel
     const card = document.getElementById('active-class-card');
     if (card) card.style.display = 'block';
 
-    // Inicia timer
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         const diff = Math.floor((Date.now() - classStartTime.getTime()) / 1000);
@@ -152,16 +140,15 @@ function setActiveSession(sessionId, startTime) {
         if (el) el.textContent = `${m}:${s}`;
     }, 1000);
 
-    // Polling automático da chamada a cada 4s
+    // Polling da chamada a cada 2s
     if (attendanceInterval) clearInterval(attendanceInterval);
     attendanceInterval = setInterval(() => {
         if (activeSessionId) loadAttendance(activeSessionId);
-    }, 4000);
+    }, 2000);
 }
 
 function clearActiveSession() {
     activeSessionId = null;
-    window.activeSessionId = null;
     classStartTime = null;
 
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
@@ -190,14 +177,13 @@ async function loadAttendance(sessionId) {
         if (!data.success) return;
 
         renderAttendanceTable(data.attendance);
-    } catch (e) { /* ignora */ }
+    } catch (e) { }
 }
 
 function renderAttendanceTable(records) {
     const wrap = document.getElementById('chamada-table-wrap');
     const empty = document.getElementById('chamada-empty');
     const tbody = document.getElementById('chamada-tbody');
-    const stats = document.getElementById('class-stats');
     const badge = document.getElementById('nav-chamada-badge');
 
     if (!records || records.length === 0) {
@@ -212,14 +198,11 @@ function renderAttendanceTable(records) {
     const presentes = records.filter(r => r.status === 'presente').length;
     const total = records.length;
 
-    // Atualiza stats e badge
-    if (stats) stats.textContent = `${presentes} / ${total} presentes`;
     if (badge) {
         badge.textContent = `${presentes}/${total}`;
         badge.classList.remove('hidden');
     }
 
-    // Título da chamada
     const subtitle = document.getElementById('chamada-subtitle');
     const isActive = !!activeSessionId;
     if (subtitle) {
@@ -274,69 +257,13 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// ── Cadastro de Alunos ───────────────────────────────────────────
-
-function openRegistration(descriptor = null) {
-    const desc = descriptor || window.lastFaceDescriptor;
-    if (!desc) {
-        showToast('Aguarde a câmera detectar um rosto.', 'error');
-        return;
-    }
-
-    document.getElementById('reg-descriptor').value = JSON.stringify(Array.from(desc));
-    document.getElementById('face-capture-status').innerText = '[Biometria Capturada ✓]';
-    document.getElementById('face-capture-status').style.color = 'var(--success)';
-    document.getElementById('modal-register').classList.add('active');
-}
-
-function closeRegistration() {
-    document.getElementById('modal-register').classList.remove('active');
-    window.registrationCooldown = true;
-    setTimeout(() => { window.registrationCooldown = false; }, 3000);
-}
-
-async function saveRegistration() {
-    const name = document.getElementById('reg-name').value;
-    const matricula = document.getElementById('reg-matricula').value;
-    const descriptor = document.getElementById('reg-descriptor').value;
-
-    if (!name || !matricula || !descriptor) {
-        showToast('Preencha todos os campos.', 'error');
-        return;
-    }
-
-    const payload = { name, registration: matricula, face_descriptor: descriptor };
-
-    try {
-        const res = await fetch('api.php?action=register_student', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            showToast(`Aluno ${name} cadastrado!`, 'success');
-            window.knownStudentsCache = null;
-            loadStudents();
-            closeRegistration();
-            document.getElementById('registration-form').reset();
-        } else {
-            showToast(data.message, 'error');
-        }
-    } catch (e) {
-        showToast('Erro de conexão.', 'error');
-    }
-}
-
+// ── Listagem de Alunos (Professor Area) ──────────────────────────
 async function loadStudents() {
     try {
         const res = await fetch('api.php?action=list_students');
         const students = await res.json();
 
         if (Array.isArray(students)) {
-            window.knownStudentsCache = students;
-
             const tbody = document.getElementById('student-table-body');
             if (!tbody) return;
             tbody.innerHTML = '';
@@ -346,7 +273,7 @@ async function loadStudents() {
                 tr.innerHTML = `
                     <td style="text-align:center;color:#888;">${s.id}</td>
                     <td>${s.nome}</td>
-                    <td style="text-align:center;">${s.matricula}</td>
+                    <td style="text-align:left;">${s.matricula}</td>
                     <td>
                         <button class="btn-action btn-delete" onclick="deleteStudent(${s.id}, '${s.nome}')">
                             Excluir
@@ -356,7 +283,7 @@ async function loadStudents() {
                 tbody.appendChild(tr);
             });
         }
-    } catch (e) { /* ignora */ }
+    } catch (e) { }
 }
 
 async function deleteStudent(id, name) {
@@ -368,7 +295,6 @@ async function deleteStudent(id, name) {
 
         if (data.success) {
             showToast('Cadastro removido.', 'success');
-            window.knownStudentsCache = null;
             loadStudents();
         } else {
             showToast(data.message, 'error');
@@ -376,14 +302,4 @@ async function deleteStudent(id, name) {
     } catch (e) {
         showToast('Falha ao excluir.', 'error');
     }
-}
-
-// ── Câmera ───────────────────────────────────────────────────────
-function retryCamera() {
-    window.stopVideo?.();
-    setTimeout(() => window.startVideo?.(), 500);
-}
-
-function toggleCamera() {
-    window.apiToggleCamera?.();
 }

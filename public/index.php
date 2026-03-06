@@ -43,7 +43,7 @@ header("Cache-Control: no-cache, must-revalidate");
 
     <!-- Toolbar Lateral de Navegação -->
     <nav>
-        <div class="logo">LIBRARY VISION</div>
+        <div class="logo">afasasfsafs de Carometro</div>
         <ul class="nav-links">
             <li class="active" onclick="showSection('vision')" title="Scanner Facial">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

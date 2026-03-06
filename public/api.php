@@ -18,7 +18,6 @@ use App\Controllers\StudentController;
 use App\Controllers\AuthController;
 use App\Controllers\ClassSessionController;
 use App\Controllers\ExportController;
-use App\Controllers\ChatController;
 
 // Inicia sessão antes de qualquer output
 if (session_status() === PHP_SESSION_NONE) {
@@ -36,7 +35,6 @@ try {
     $studentController = new StudentController($db);
     $sessionController = new ClassSessionController($db);
     $exportController = new ExportController($db);
-    $chatController = new ChatController($db);
 
     // ── Rota pública: login ──────────────────────────────────────
     if ($action === 'login') {
@@ -117,14 +115,8 @@ try {
             echo json_encode($sessionController->closeSession($sessionId, $professor['id']));
             break;
 
-        // ── Relatórios & Chat ───────────────────────────────────
         case 'export_excel':
             $exportController->exportExcel();
-            break;
-
-        case 'chat_ai':
-            $data = json_decode(file_get_contents('php://input'), true) ?? [];
-            echo json_encode($chatController->chat($data['message'] ?? ''));
             break;
 
         default:
