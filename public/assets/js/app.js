@@ -170,6 +170,14 @@ async function loadHistory() {
     if (!data.success || !data.history?.length) return tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">Nenhuma aula encontrada no histórico.</td></tr>';
     tbody.innerHTML = data.history.map(h => {
         const dt = h.data_aula.split('-').reverse().join('/');
-        return `<tr><td style="font-weight:600;">${h.nome_aula || '—'}</td><td style="color:#555;">${dt}</td><td style="color:#555;">${h.hora_inicio.slice(0, 5)} às ${h.hora_fim?.slice(0, 5) || '--:--'}</td><td style="text-align:center;"><span style="font-weight:bold;color:var(--primary)">${h.presentes}</span> / ${h.total_alunos}</td><td style="text-align:center;"><span class="attendance-badge ${h.status === 'ativa' ? 'presente' : 'falta'}" style="${h.status !== 'ativa' ? 'background:#e2e3e5;color:#383d41;' : ''}">${h.status === 'ativa' ? 'Em Andamento' : 'Encerrada'}</span></td></tr>`;
+        return `<tr><td style="font-weight:600;">${h.nome_aula || '—'}</td><td style="color:#555;">${dt}</td><td style="color:#555;">${h.hora_inicio.slice(0, 5)} às ${h.hora_fim?.slice(0, 5) || '--:--'}</td><td style="text-align:center;"><span style="font-weight:bold;color:var(--primary)">${h.presentes}</span> / ${h.total_alunos}</td><td style="text-align:center;"><button class="btn-action" style="padding:4px 8px; font-size:0.75rem;" onclick="viewAttendance(${h.id}, '${h.nome_aula}')">Ver Alunos</button></td></tr>`;
     }).join('');
+}
+
+async function viewAttendance(sessionId, nomeAula) {
+    const data = await apiFetch(`get_attendance&session_id=${sessionId}`);
+    if (!data.success) return showToast('Erro ao carregar', 'error');
+    document.getElementById('modal-att-title').innerText = nomeAula;
+    document.getElementById('modal-att-tbody').innerHTML = data.attendance.map(r => `<tr><td style="padding:10px; font-weight:600;">${r.nome}</td><td>${r.matricula}</td><td style="text-align:center;"><span class="attendance-badge ${r.status}"> ${r.status === 'presente' ? '✓' : '✗'} ${r.status}</span></td><td style="text-align:center;">${r.horario_entrada || '—'}</td></tr>`).join('');
+    document.getElementById('modal-attendance').classList.add('active');
 }
