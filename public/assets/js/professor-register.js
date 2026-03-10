@@ -22,13 +22,13 @@ async function startRegCamera() {
         // Aguarda carregar as IAs se ainda não estiverem na memória
         if (!window.modelsLoaded) {
             status.innerText = "Carregando Face-API...";
-            const URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-            await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(URL), faceapi.nets.faceLandmark68Net.loadFromUri(URL), faceapi.nets.faceRecognitionNet.loadFromUri(URL)]);
+            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+            await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL), faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]);
             window.modelsLoaded = true;
         }
         status.innerText = "Analizando rosto..."; isRegScanning = true;
 
-        video.onloadedmetadata = () => startRegScanLoop();
+        if (video.readyState >= 2) startRegScanLoop(); else video.onloadedmetadata = () => startRegScanLoop();
 
     } catch (e) { status.innerText = "Câmera indisponível."; }
 }
