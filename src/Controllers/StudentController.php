@@ -18,18 +18,12 @@ class StudentController
      */
     public function listByTurma(string $turma): array
     {
-        $stmt = $this->db->prepare(
-            "SELECT id, nome, matricula, turma, status, data_cadastro, face_descriptor
-             FROM students
-             WHERE turma = ? AND status = 'ativo'
-             ORDER BY nome ASC"
-        );
+        $stmt = $this->db->prepare("SELECT * FROM students WHERE turma = ? AND status = 'ativo' ORDER BY nome ASC");
         $stmt->bind_param("s", $turma);
         $stmt->execute();
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $res = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
-
-        return $rows;
+        return $res;
     }
 
     /**
@@ -37,27 +31,17 @@ class StudentController
      */
     public function register(array $data): array
     {
-        $nome = trim($data['name'] ?? '');
-        $matricula = trim($data['registration'] ?? '');
-        $turma = trim($data['turma'] ?? '');
-        $faceDescriptor = trim($data['face_descriptor'] ?? '');
+        $fields = ['name', 'registration', 'turma', 'face_descriptor'];
+        foreach ($fields as $f)
+            if (empty(trim($data[$f] ?? '')))
+                return ['success' => false, 'message' => "Campo $f ausente."];
 
-        if (empty($nome) || empty($matricula) || empty($faceDescriptor) || empty($turma)) {
-            return ['success' => false, 'message' => 'Campos obrigatórios ausentes.'];
-        }
-
-        $stmt = $this->db->prepare(
-            "INSERT INTO students (nome, matricula, turma, face_descriptor)
-             VALUES (?, ?, ?, ?)"
-        );
-        $stmt->bind_param("ssss", $nome, $matricula, $turma, $faceDescriptor);
-        $result = $stmt->execute();
+        $stmt = $this->db->prepare("INSERT INTO students (nome, matricula, turma, face_descriptor) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssss", $data['name'], $data['registration'], $data['turma'], $data['face_descriptor']);
+        $ok = $stmt->execute();
         $stmt->close();
 
-        return [
-            'success' => $result,
-            'message' => $result ? 'Aluno cadastrado com sucesso!' : 'Erro: matrícula já cadastrada.',
-        ];
+        return ['success' => $ok, 'message' => $ok ? 'Aluno cadastrado!' : 'Erro: matrícula já existe.'];
     }
 
     /**
@@ -67,12 +51,8 @@ class StudentController
     {
         $stmt = $this->db->prepare("DELETE FROM students WHERE id = ?");
         $stmt->bind_param("i", $id);
-        $result = $stmt->execute();
+        $ok = $stmt->execute();
         $stmt->close();
-
-        return [
-            'success' => $result,
-            'message' => $result ? 'Aluno excluído.' : 'Erro ao excluir aluno.',
-        ];
+        return ['success' => $ok, 'message' => $ok ? 'Excluído.' : 'Erro ao excluir.'];
     }
 }

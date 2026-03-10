@@ -2,87 +2,47 @@
  * Professor Registration Module - Captures student's face via the professor's webcam for registration.
  */
 
-let regStream = null;
-let regInterval = null;
-let isRegScanning = false;
+let regStream = null, regInterval = null, isRegScanning = false;
 
 async function openRegistrationModal() {
     document.getElementById('modal-register').classList.add('active');
-    document.getElementById('registration-form').reset();
-    document.getElementById('reg-descriptor').value = '';
-
-    const btnSave = document.getElementById('btn-save-reg');
-    btnSave.disabled = true;
-    btnSave.innerText = "Aguardando Rosto...";
-
+    ['reg-name', 'reg-matricula', 'reg-descriptor'].forEach(id => document.getElementById(id).value = '');
+    const btn = document.getElementById('btn-save-reg'); btn.disabled = true; btn.innerText = "Aguardando Rosto...";
     await startRegCamera();
 }
 
-function closeRegistrationModal() {
-    document.getElementById('modal-register').classList.remove('active');
-    stopRegCamera();
-}
+function closeRegistrationModal() { document.getElementById('modal-register').classList.remove('active'); stopRegCamera(); }
 
 async function startRegCamera() {
-    const video = document.getElementById('video-register');
-    const status = document.getElementById('reg-camera-status');
-
+    const video = document.getElementById('video-register'), status = document.getElementById('reg-camera-status');
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
-        video.srcObject = stream;
-        regStream = stream;
+        regStream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
+        video.srcObject = regStream;
 
         // Aguarda carregar as IAs se ainda não estiverem na memória
         if (!window.modelsLoaded) {
             status.innerText = "Carregando Face-API...";
-            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-            await Promise.all([
-                faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-            ]);
+            const URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+            await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(URL), faceapi.nets.faceLandmark68Net.loadFromUri(URL), faceapi.nets.faceRecognitionNet.loadFromUri(URL)]);
             window.modelsLoaded = true;
         }
+        status.innerText = "Analizando rosto..."; isRegScanning = true;
 
-        status.innerText = "Analizando rosto...";
-        isRegScanning = true;
+        video.onloadedmetadata = () => startRegScanLoop();
 
-        video.onloadedmetadata = () => {
-            startRegScanLoop();
-        };
-
-    } catch (e) {
-        status.innerText = "Câmera bloqueada ou indisponível.";
-        console.error(e);
-    }
+    } catch (e) { status.innerText = "Câmera indisponível."; }
 }
 
 function stopRegCamera() {
-    isRegScanning = false;
-    if (regInterval) {
-        clearInterval(regInterval);
-        regInterval = null;
-    }
-    if (regStream) {
-        regStream.getTracks().forEach(track => track.stop());
-        regStream = null;
-    }
-    const video = document.getElementById('video-register');
-    if (video) video.srcObject = null;
-
+    isRegScanning = false; clearInterval(regInterval);
+    if (regStream) { regStream.getTracks().forEach(t => t.stop()); regStream = null; }
+    document.getElementById('video-register').srcObject = null;
     const canvas = document.getElementById('overlay-register');
-    if (canvas) {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
+    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 }
 
 function startRegScanLoop() {
-    const video = document.getElementById('video-register');
-    const canvas = document.getElementById('overlay-register');
-    const status = document.getElementById('reg-camera-status');
-    const btnSave = document.getElementById('btn-save-reg');
-    const descriptorInput = document.getElementById('reg-descriptor');
+    const video = document.getElementById('video-register'), canvas = document.getElementById('overlay-register'), status = document.getElementById('reg-camera-status'), btn = document.getElementById('btn-save-reg'), input = document.getElementById('reg-descriptor');
 
     regInterval = setInterval(async () => {
         if (!isRegScanning || !video || video.paused) return;
@@ -91,69 +51,32 @@ function startRegScanLoop() {
         faceapi.matchDimensions(canvas, size);
 
         try {
-            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 }))
-                .withFaceLandmarks()
-                .withFaceDescriptor();
+            const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptor();
+            const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            if (detection) {
-                const resized = faceapi.resizeResults(detection, size);
-
+            if (det) {
                 // Desenha caixa de Sucesso (Verde)
-                const box = resized.detection.box;
-                const drawBox = new faceapi.draw.DrawBox(box, {
-                    label: 'Rosto Detectado',
-                    lineWidth: 3,
-                    boxColor: 'rgba(40, 167, 69, 0.9)'
-                });
-                drawBox.draw(canvas);
+                new faceapi.draw.DrawBox(faceapi.resizeResults(det, size).detection.box, { label: 'Capturado ✓', lineWidth: 3, boxColor: '#28a745' }).draw(canvas);
 
                 status.innerText = "Biometria Capturada ✓";
-                status.style.backgroundColor = "rgba(40, 167, 69, 0.8)";
+                status.style.backgroundColor = "#28a745";
 
                 // Converte Float32Array para Array e dps JSON para salvar no BD
-                descriptorInput.value = JSON.stringify(Array.from(detection.descriptor));
+                input.value = JSON.stringify(Array.from(det.descriptor));
 
-                btnSave.disabled = false;
-                btnSave.innerText = "Salvar Cadastro";
+                btn.disabled = false;
+                btn.innerText = "Salvar Cadastro";
             } else {
                 status.innerText = "Rosto não detectado.";
-                status.style.backgroundColor = "rgba(0, 0, 0, 0.6)";
+                status.style.backgroundColor = "rgba(0,0,0,0.6)";
             }
         } catch (e) { }
     }, 1000); // 1 FPS para não pesar o input
 }
 
 async function saveRegistration() {
-    const name = document.getElementById('reg-name').value;
-    const matricula = document.getElementById('reg-matricula').value;
-    const descriptor = document.getElementById('reg-descriptor').value;
-
-    if (!name || !matricula || !descriptor) {
-        showToast('Preencha nome, matrícula e aguarde a detecção do rosto.', 'error');
-        return;
-    }
-
-    const payload = { name, registration: matricula, face_descriptor: descriptor };
-
-    try {
-        const res = await fetch('api.php?action=register_student', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            showToast(`Aluno ${name} cadastrado!`, 'success');
-            loadStudents();
-            closeRegistrationModal();
-        } else {
-            showToast(data.message, 'error');
-        }
-    } catch (e) {
-        showToast('Erro de conexão.', 'error');
-    }
+    const name = document.getElementById('reg-name').value, matricula = document.getElementById('reg-matricula').value, desc = document.getElementById('reg-descriptor').value;
+    if (!name || !matricula || !desc) return showToast('Dados incompletos.', 'error');
+    const data = await apiFetch('register_student', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, registration: matricula, face_descriptor: desc }) });
+    if (data.success) { showToast(`Salvo!`); loadStudents(); closeRegistrationModal(); } else showToast(data.message, 'error');
 }

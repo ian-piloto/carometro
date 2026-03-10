@@ -15,19 +15,8 @@ class AuthController
      * Adicione novos professores aqui — sem banco de dados necessário.
      */
     private array $professores = [
-        [
-            'nome' => 'Professor Administrador',
-            'email' => 'admin@escola.com',
-            'senha' => 'admin123',
-            'turma' => 'Turma A',
-        ],
-        // Exemplo de como adicionar outro professor:
-        // [
-        //     'nome'  => 'Maria Souza',
-        //     'email' => 'maria@escola.com',
-        //     'senha' => 'senha456',
-        //     'turma' => 'Turma B',
-        // ],
+        ['nome' => 'Professor Administrador', 'email' => 'admin@escola.com', 'senha' => 'admin123', 'turma' => 'Turma A'],
+        ['nome' => 'Gideão dos Santos', 'email' => 'gideao@escola.com', 'senha' => 'gide123', 'turma' => 'Turma B'],
     ];
 
     public function __construct()
@@ -45,28 +34,12 @@ class AuthController
         $email = trim($data['email'] ?? '');
         $senha = trim($data['senha'] ?? '');
 
-        if (empty($email) || empty($senha)) {
-            return ['success' => false, 'message' => 'E-mail e senha são obrigatórios.'];
-        }
-
-        foreach ($this->professores as $prof) {
-            if ($prof['email'] === $email && $prof['senha'] === $senha) {
-                $_SESSION['professor'] = [
-                    'id' => 0,
-                    'nome' => $prof['nome'],
-                    'email' => $prof['email'],
-                    'turma' => $prof['turma'],
-                ];
-
-                return [
-                    'success' => true,
-                    'professor' => $_SESSION['professor'],
-                    'message' => 'Login realizado!',
-                ];
+        foreach ($this->professores as $p) {
+            if ($p['email'] === $email && $p['senha'] === $senha) {
+                return ['success' => true, 'professor' => $_SESSION['professor'] = ['id' => 0, 'nome' => $p['nome'], 'email' => $p['email'], 'turma' => $p['turma']]];
             }
         }
-
-        return ['success' => false, 'message' => 'E-mail ou senha incorretos.'];
+        return ['success' => false, 'message' => 'Credenciais inválidas.'];
     }
 
     /**

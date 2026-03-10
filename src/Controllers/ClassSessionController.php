@@ -13,159 +13,69 @@ class ClassSessionController
     {
     }
 
-    /**
-     * Inicia uma nova sessão de aula para o professor.
-     * Pré-popula a chamada com FALTA para todos os alunos da turma.
-     */
-    public function startSession(int $professorId, string $turma): array
+    public function startSession(int $professorId, string $turma, string $nomeAula): array
     {
-        // Verifica se já há uma aula ativa para este professor
-        $check = $this->db->prepare(
-            "SELECT id FROM class_sessions WHERE professor_id = ? AND status = 'ativa' LIMIT 1"
-        );
-        $check->bind_param("i", $professorId);
-        $check->execute();
-        $existing = $check->get_result()->fetch_assoc();
-        $check->close();
-
-        if ($existing) {
-            return [
-                'success' => false,
-                'message' => 'Já existe uma aula ativa. Encerre-a antes de iniciar outra.',
-                'session_id' => $existing['id'],
-            ];
-        }
+        $existing = $this->db->query("SELECT id FROM class_sessions WHERE professor_id = $professorId AND status = 'ativa' LIMIT 1")->fetch_assoc();
+        if ($existing)
+            return ['success' => false, 'message' => 'Aula já ativa.', 'session_id' => $existing['id']];
 
         $today = date('Y-m-d');
-        $horaInicio = date('H:i:s');
-
-        $stmt = $this->db->prepare(
-            "INSERT INTO class_sessions (professor_id, turma, data_aula, hora_inicio) VALUES (?, ?, ?, ?)"
-        );
-        $stmt->bind_param("isss", $professorId, $turma, $today, $horaInicio);
-        $result = $stmt->execute();
+        $hora = date('H:i:s');
+        $stmt = $this->db->prepare("INSERT INTO class_sessions (professor_id, turma, nome_aula, data_aula, hora_inicio) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("issss", $professorId, $turma, $nomeAula, $today, $hora);
+        if (!$stmt->execute())
+            return ['success' => false, 'message' => 'Erro ao criar aula.'];
         $sessionId = $this->db->insert_id;
         $stmt->close();
 
-        if (!$result) {
-            return ['success' => false, 'message' => 'Erro ao criar sessão de aula.'];
-        }
-
-        // Pré-popula chamada: todos os alunos da turma recebem FALTA
-        $students = $this->db->prepare(
-            "SELECT id FROM students WHERE turma = ? AND status = 'ativo'"
-        );
-        $students->bind_param("s", $turma);
-        $students->execute();
-        $rows = $students->get_result()->fetch_all(MYSQLI_ASSOC);
-        $students->close();
-
-        if (!empty($rows)) {
-            $insert = $this->db->prepare(
-                "INSERT INTO attendance (session_id, student_id, status) VALUES (?, ?, 'falta')"
-            );
-            foreach ($rows as $s) {
-                $insert->bind_param("ii", $sessionId, $s['id']);
-                $insert->execute();
+        $students = $this->db->query("SELECT id FROM students WHERE turma = '$turma' AND status = 'ativo'")->fetch_all(MYSQLI_ASSOC);
+        if ($students) {
+            $stmt = $this->db->prepare("INSERT INTO attendance (session_id, student_id, status) VALUES (?, ?, 'falta')");
+            foreach ($students as $s) {
+                $stmt->bind_param("ii", $sessionId, $s['id']);
+                $stmt->execute();
             }
-            $insert->close();
+            $stmt->close();
         }
 
-        return [
-            'success' => true,
-            'session_id' => $sessionId,
-            'message' => 'Aula iniciada! Chamada aberta com ' . count($rows) . ' aluno(s).',
-        ];
+        return ['success' => true, 'session_id' => $sessionId, 'message' => 'Aula iniciada com ' . count($students) . ' alunos.'];
     }
 
-    /**
-     * Busca a sessão de aula ativa do professor.
-     */
     public function getActiveSession(int $professorId): array
     {
-        $stmt = $this->db->prepare(
-            "SELECT id, turma, data_aula, hora_inicio
-             FROM class_sessions
-             WHERE professor_id = ? AND status = 'ativa'
-             LIMIT 1"
-        );
-        $stmt->bind_param("i", $professorId);
-        $stmt->execute();
-        $session = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$session) {
-            return ['success' => false, 'active' => false];
-        }
-
-        return ['success' => true, 'active' => true, 'session' => $session];
+        $res = $this->db->query("SELECT * FROM class_sessions WHERE professor_id = $professorId AND status = 'ativa' LIMIT 1")->fetch_assoc();
+        return ['success' => !!$res, 'active' => !!$res, 'session' => $res];
     }
 
-    /**
-     * Retorna a lista completa de chamada de uma sessão.
-     */
+    public function getHistory(int $professorId): array
+    {
+        $sql = "SELECT c.*, 
+                (SELECT COUNT(*) FROM attendance a WHERE a.session_id = c.id) as total_alunos,
+                (SELECT COUNT(*) FROM attendance a WHERE a.session_id = c.id AND a.status = 'presente') as presentes
+                FROM class_sessions c WHERE c.professor_id = $professorId ORDER BY c.data_aula DESC, c.hora_inicio DESC";
+        return ['success' => true, 'history' => $this->db->query($sql)->fetch_all(MYSQLI_ASSOC)];
+    }
+
     public function getAttendance(int $sessionId): array
     {
-        $stmt = $this->db->prepare(
-            "SELECT s.id AS student_id, s.nome, s.matricula,
-                    a.status, a.horario_entrada
-             FROM attendance a
-             JOIN students s ON s.id = a.student_id
-             WHERE a.session_id = ?
-             ORDER BY s.nome ASC"
-        );
-        $stmt->bind_param("i", $sessionId);
-        $stmt->execute();
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-
-        return ['success' => true, 'attendance' => $rows];
+        $sql = "SELECT s.id as student_id, s.nome, s.matricula, a.status, a.horario_entrada 
+                FROM attendance a JOIN students s ON s.id = a.student_id 
+                WHERE a.session_id = $sessionId ORDER BY s.nome ASC";
+        return ['success' => true, 'attendance' => $this->db->query($sql)->fetch_all(MYSQLI_ASSOC)];
     }
 
-    /**
-     * Marca o aluno como PRESENTE na sessão ativa.
-     */
     public function markPresent(int $sessionId, int $studentId): array
     {
         $hora = date('H:i:s');
-
-        $stmt = $this->db->prepare(
-            "UPDATE attendance
-             SET status = 'presente', horario_entrada = ?
-             WHERE session_id = ? AND student_id = ? AND status = 'falta'"
-        );
-        $stmt->bind_param("sii", $hora, $sessionId, $studentId);
-        $stmt->execute();
-        $affected = $this->db->affected_rows;
-        $stmt->close();
-
-        return [
-            'success' => true,
-            'updated' => $affected > 0,
-            'message' => $affected > 0 ? 'Presença registrada!' : 'Aluno já marcado como presente.',
-        ];
+        $this->db->query("UPDATE attendance SET status = 'presente', horario_entrada = '$hora' WHERE session_id = $sessionId AND student_id = $studentId AND status = 'falta'");
+        $ok = $this->db->affected_rows > 0;
+        return ['success' => true, 'updated' => $ok, 'message' => $ok ? 'Presente!' : 'Já marcado.'];
     }
 
-    /**
-     * Encerra a sessão de aula ativa.
-     */
     public function closeSession(int $sessionId, int $professorId): array
     {
-        $horaFim = date('H:i:s');
-
-        $stmt = $this->db->prepare(
-            "UPDATE class_sessions
-             SET status = 'encerrada', hora_fim = ?
-             WHERE id = ? AND professor_id = ? AND status = 'ativa'"
-        );
-        $stmt->bind_param("sii", $horaFim, $sessionId, $professorId);
-        $stmt->execute();
-        $affected = $this->db->affected_rows;
-        $stmt->close();
-
-        return [
-            'success' => $affected > 0,
-            'message' => $affected > 0 ? 'Aula encerrada com sucesso!' : 'Sessão não encontrada ou já encerrada.',
-        ];
+        $hora = date('H:i:s');
+        $this->db->query("UPDATE class_sessions SET status = 'encerrada', hora_fim = '$hora' WHERE id = $sessionId AND professor_id = $professorId AND status = 'ativa'");
+        return ['success' => $this->db->affected_rows > 0, 'message' => 'Aula encerrada.'];
     }
 }

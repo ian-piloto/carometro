@@ -31,12 +31,15 @@ CREATE TABLE IF NOT EXISTS class_sessions (
     id           INT AUTO_INCREMENT PRIMARY KEY,
     professor_id INT NOT NULL DEFAULT 0,
     turma        VARCHAR(100) NOT NULL,
+    nome_aula    VARCHAR(255) NOT NULL,
     data_aula    DATE NOT NULL,
     hora_inicio  TIME NOT NULL,
     hora_fim     TIME NULL,
     status       ENUM('ativa', 'encerrada') DEFAULT 'ativa',
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_professor_status (professor_id, status)
+    INDEX idx_professor_status (professor_id, status),
+    INDEX idx_data_aula (data_aula),
+    INDEX idx_nome_aula (nome_aula)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ------------------------------------------------------------
