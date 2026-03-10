@@ -36,12 +36,19 @@ class StudentController
             if (empty(trim($data[$f] ?? '')))
                 return ['success' => false, 'message' => "Campo $f ausente."];
 
-        $stmt = $this->db->prepare("INSERT INTO students (nome, matricula, turma, face_descriptor) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("ssss", $data['name'], $data['registration'], $data['turma'], $data['face_descriptor']);
-        $ok = $stmt->execute();
-        $stmt->close();
-
-        return ['success' => $ok, 'message' => $ok ? 'Aluno cadastrado!' : 'Erro: matrícula já existe.'];
+        try {
+            $stmt = $this->db->prepare("INSERT INTO students (nome, matricula, turma, face_descriptor) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("ssss", $data['name'], $data['registration'], $data['turma'], $data['face_descriptor']);
+            $ok = $stmt->execute();
+            $stmt->close();
+            return ['success' => true, 'message' => 'Aluno cadastrado!'];
+        }
+        catch (\mysqli_sql_exception $e) {
+            if ($e->getCode() === 1062) {
+                return ['success' => false, 'message' => "Erro: A matrícula '{$data['registration']}' já está cadastrada no sistema."];
+            }
+            throw $e;
+        }
     }
 
     /**
